@@ -1,0 +1,7 @@
+bin
+rel/mztz/*
+deps
+ebin
+erl_crash.dump
+log
+.idea

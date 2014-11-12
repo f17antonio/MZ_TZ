@@ -1,0 +1,14 @@
+{application, mztz,
+ [
+  {description, "MachineZone TZ"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+      kernel,
+      stdlib,
+      inets,
+      elli
+  ]},
+  {mod, { mztz_app, []}},
+  {env, []}
+ ]}.
