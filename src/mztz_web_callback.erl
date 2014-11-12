@@ -9,9 +9,14 @@
 handle(Req, _Args) ->
     handle(Req#req.method, elli_request:path(Req), Req).
 
-handle(_Method, [], _) ->
-    {ok, [], <<"Hello World !!!">>}.
-    %{ok, [], to_json({ok, {[{ok, <<"Hello World !!!">>}]}})}.
+handle(_Method, [<<"sequence">>, <<"create">>], _Req) ->
+    {ok, [], to_json({ok, <<"Sequence Created !!!">>})};
+
+handle('POST', [<<"observation">>, <<"add">>], _Req) ->
+    {ok, [], to_json({ok, <<"Observation Added !!!">>})};
+
+handle(_, _, _Req) ->
+    {ok, [], to_json({error, <<"Invalid Path">>})}.
 
 %% @doc: Handle request events, like request completed, exception
 %% thrown, client timeout, etc. Must return 'ok'.
@@ -27,7 +32,7 @@ handle_event(Event, Data, Args) ->
     io:format("Event: ~p~nData: ~p~nArgs: ~p~n", [Event, Data, Args]),
     ok.
 
-to_json({ok, Value}) ->
-    jiffy:encode(Value);
-to_json({error, Value}) ->
-    jiffy:encode(Value).
+to_json({ok, Response}) ->
+    jiffy:encode({[{status, <<"ok">>}, {response, Response}]});
+to_json({error, Msg}) ->
+    jiffy:encode({[{status, <<"error">>}, {msg, Msg}]}).
