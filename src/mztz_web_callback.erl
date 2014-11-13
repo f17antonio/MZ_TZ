@@ -10,7 +10,8 @@ handle(Req, _Args) ->
     handle(Req#req.method, elli_request:path(Req), Req).
 
 handle(_Method, [<<"sequence">>, <<"create">>], _Req) ->
-    {ok, [], to_json({ok, <<"Sequence Created !!!">>})};
+    Out = lights_manager_srv:create_light(),
+    {ok, [], to_json(Out)};
 
 handle('POST', [<<"observation">>, <<"add">>], _Req) ->
     {ok, [], to_json({ok, <<"Observation Added !!!">>})};

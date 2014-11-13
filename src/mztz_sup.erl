@@ -24,7 +24,9 @@ start_link() ->
 %% ===================================================================
 init([]) ->
     Elli   = webserver(),
+    LightsManagerSrv = ?CHILD(lights_manager_srv),
     {ok, { {one_for_one, 5, 10}, [
+        LightsManagerSrv,
         Elli
     ]}}.
 
