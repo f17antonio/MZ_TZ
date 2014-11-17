@@ -42,15 +42,9 @@ init(_Args) ->
 
 handle_call({add_observation, <<"red">>, _}, _From, State = #state{iteration = 1}) ->
     {reply, {error, <<"There isn't enough data">>}, State};
-handle_call({add_observation, <<"red">>, _}, _From,
-    State = #state{iteration = I, first_bfigures = FBFs, estimated_figures = EFs}) ->
-    {Out, NewEFs} = case get_approach_figures([I - 1], FBFs) of
-              {ok, NEFs, NBS} ->
-                  {{ok, {[{start, [NEFs]}, {missing, NBS}]}}, NEFs};
-              {error, Reason} ->
-                  {{error, Reason}, EFs}
-          end,
-    {reply, Out, State#state{estimated_figures = NewEFs}};
+handle_call({add_observation, <<"red">>, _}, _From, State = #state{iteration = I, first_bfigures = FBFs}) ->
+    {Out, NewState} = get_light_data([I - 1], FBFs , 1, State),
+    {reply, Out, NewState};
 
 handle_call({add_observation, _, BFigures}, _From, State = #state{iteration = 1}) ->
     {EstimFigures, BrokenSections} = get_start_figures(BFigures),
@@ -60,16 +54,8 @@ handle_call({add_observation, _, BFigures}, _From, State = #state{iteration = 1}
         iteration = 2}};
 
 handle_call({add_observation, _, BFigures}, _From, State = #state{iteration = I, estimated_figures = EFs} ) ->
-    MEFs = lists:map(fun(X) ->X - I + 1 end, EFs),
-    {Out, NewEFs} = case get_approach_figures(MEFs, BFigures) of
-                        {ok, NewMEFs, NBS} ->
-                            NEFs = lists:map(fun(X) ->X + I - 1 end, NewMEFs),
-                            OutNBS = lists:map(fun bs_to_out_format/1, NBS),
-                            {{ok, {[{start, NEFs}, {missing, OutNBS}]}}, NEFs};
-                        {error, Reason} ->
-                            {{error, Reason}, EFs}
-                    end,
-    {reply, Out, State#state{iteration = I + 1, estimated_figures = NewEFs}};
+    {Out, NewState} = get_light_data(EFs, BFigures , I, State),
+    {reply, Out, NewState#state{iteration = I + 1}};
 handle_call(_Req, _From, State) ->
     {reply, ok, State}.
 
@@ -84,6 +70,19 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+
+get_light_data(EstimatedFigures, BrokeFigures, I, State) ->
+    MEFs = lists:map(fun(X) -> X - I + 1 end, EstimatedFigures),
+    case get_approach_figures(MEFs, BrokeFigures) of
+        {error, Reason} ->
+            {{error, Reason}, State};
+        {ok, NewMEFs, NBS} ->
+            NEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
+            OutNBS = lists:map(fun bs_to_out_format/1, NBS),
+            NewState = State#state{estimated_figures = NEFs, iteration = I + 1},
+            {{ok, {[{start, NEFs}, {missing, OutNBS}]}}, NewState}
+    end.
 
 get_start_figures(Figures) ->
     FiguresCompareData = lists:map(fun compare_figure/1, Figures),

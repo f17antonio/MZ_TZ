@@ -53,7 +53,6 @@ handle_call(create, _From, State = #state{sequences_map = SequensesMap, light_su
     {reply, Response, State#state{sequences_map = SequensesNewMap}};
 
 handle_call({add, Seq, Color, Numbers}, _From, State = #state{sequences_map = SequensesMap}) ->
-    io:format("SEQMAP1: ~p SEQ: ~p~n", [SequensesMap, Seq]),
     LPidTuple = maps:find(Seq, SequensesMap),
     %TODO: make it without delay
     Response = call_to_light_server(LPidTuple, Color, Numbers),
