@@ -32,8 +32,6 @@
     first_bfigures = []
 }).
 
-% TODO: Check NULLs
-
 start_link(_) ->
     gen_server:start_link(?MODULE, [], []).
 
@@ -75,10 +73,11 @@ get_light_data(SplitedMEFs, BrokeFigures, I, State) ->
     case get_approach_figures(SplitedMEFs, BrokeFigures) of
         {error, Reason} ->
             {{error, Reason}, State};
-        {ok, NewMEFs, NBS} ->
+        {ok, NewMEFs, CurBS} ->
+            NewBS = merge_bs(CurBS, State#state.broken_sections),
             NEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
-            OutNBS = lists:map(fun bs_to_out_format/1, NBS),
-            NewState = State#state{estimated_figures = NEFs, iteration = I + 1},
+            OutNBS = lists:map(fun bs_to_out_format/1, NewBS),
+            NewState = State#state{estimated_figures = NEFs, iteration = I + 1, broken_sections = NewBS},
             {{ok, {[{start, NEFs}, {missing, OutNBS}]}}, NewState}
     end.
 
@@ -112,7 +111,7 @@ get_unanbiguous_bs(Summ, Lenght, Acc, Result) ->
 prep_estim_figures(Data) ->
     prep_estim_figures(Data, 1, [0]).
 prep_estim_figures([], _, Res) ->
-    Res;
+    lists:delete(0, Res);
 prep_estim_figures([EstFig | T], M, Res) ->
     AllFigures =  [X * M + Y || X <- EstFig, Y <- Res],
     prep_estim_figures(T, M * 10, AllFigures).
@@ -124,7 +123,7 @@ get_approach_figures(SNums, BFigures) ->
     get_approach_figures(SNums, BFigures, [], []).
 get_approach_figures(_, [], CorrectNums, BrokenSecs) ->
     EstFigures = prep_estim_figures(CorrectNums),
-    {ok, EstFigures, lists:reverse(BrokenSecs)};
+    {ok, EstFigures, BrokenSecs};
 get_approach_figures([Nums | NT], [BFigure | BFT], CorrectNums, BrokenSecs) ->
     IntBrokenFigure = list_to_integer(binary_to_list(BFigure)),
     NumsData = [compare_num(Dig, IntBrokenFigure) || Dig <- Nums],
@@ -150,3 +149,16 @@ compare_num(Dig, IntBrokenFigure) ->
         false -> error;
         true -> {Dig, Diff}
     end.
+
+merge_bs(CurBS, []) ->
+    CurBS;
+merge_bs(CurBS, BS) ->
+    merge_bs(CurBS, lists:reverse(BS), []).
+merge_bs([], _, Res) ->
+    Res;
+merge_bs([CurBS | CBST], [BS | BST], Res) ->
+    merge_bs(CBST, BST, [format_bs(CurBS + BS) | Res]).
+
+format_bs(0) -> 0;
+format_bs(BS) when BS < 10 -> 1;
+format_bs(BS) -> format_bs(BS rem 10) + format_bs(BS div 10) * 10.
