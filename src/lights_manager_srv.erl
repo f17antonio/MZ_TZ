@@ -52,11 +52,10 @@ handle_call(create, _From, State = #state{sequences_map = SequensesMap, light_su
     Response = {ok, {[{sequence, Sequense}]}},
     {reply, Response, State#state{sequences_map = SequensesNewMap}};
 
-handle_call({add, Seq, Color, Numbers}, _From, State = #state{sequences_map = SequensesMap}) ->
+handle_call({add, Seq, Color, Numbers}, From, State = #state{sequences_map = SequensesMap}) ->
     LPidTuple = maps:find(Seq, SequensesMap),
-    %TODO: make it without delay
-    Response = call_to_light_server(LPidTuple, Color, Numbers),
-    {reply, Response, State}.
+    request_to_light_server(LPidTuple, Color, Numbers, From),
+    {noreply, State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -75,7 +74,7 @@ create(LSup) ->
     {ok, Pid} = light_sup:light_start(LSup, []),
     {Seq, Pid}.
 
-call_to_light_server(error, _, _) ->
+request_to_light_server(error, _, _, _) ->
     {error, <<"The sequence isn't found">>};
-call_to_light_server({ok, LPid}, Color, Numbers) ->
-    gen_server:call(LPid, {add_observation, Color, Numbers}).
+request_to_light_server({ok, LPid}, Color, Numbers, From) ->
+    gen_server:cast(LPid, {add_observation, Color, Numbers, From}).

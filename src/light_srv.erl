@@ -38,24 +38,28 @@ start_link(_) ->
 init(_Args) ->
     {ok, #state{iteration = 1}}.
 
-handle_call({add_observation, <<"red">>, _}, _From, State = #state{iteration = 1}) ->
-    {reply, {error, <<"There isn't enough data">>}, State};
-handle_call({add_observation, <<"red">>, _}, _From, State = #state{iteration = I, first_bfigures = FBFs}) ->
-    SplitedMEFs = split_figures([I - 1], FBFs),
-    {Out, NewState} = get_light_data(SplitedMEFs, FBFs , 1, State),
-    {reply, Out, NewState};
-handle_call({add_observation, _, BFigures}, _From, State = #state{iteration = 1}) ->
-    Nums = lists:duplicate(length(BFigures), lists:seq(0, 9)),
-    {Out, NewState} = get_light_data(Nums, BFigures, 1, State),
-    {reply, Out, NewState#state{first_bfigures = BFigures}};
-handle_call({add_observation, _, BFigures}, _From, State = #state{iteration = I, estimated_figures = EFs} ) ->
-    MEFs = lists:map(fun(X) -> X - I + 1 end, EFs),
-    SplitedMEFs = split_figures(MEFs, BFigures),
-    {Out, NewState} = get_light_data(SplitedMEFs, BFigures , I, State),
-    {reply, Out, NewState#state{iteration = I + 1}};
 handle_call(_Req, _From, State) ->
     {reply, ok, State}.
 
+handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = 1}) ->
+    gen_server:reply(ReqPid, {error, <<"There isn't enough data">>}),
+    {noreply, State};
+handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = I, first_bfigures = FBFs}) ->
+    SplitedMEFs = split_figures([I - 1], FBFs),
+    {Out, NewState} = get_light_data(SplitedMEFs, FBFs , 1, State),
+    gen_server:reply(ReqPid, Out),
+    {noreply, NewState};
+handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = 1}) ->
+    Nums = lists:duplicate(length(BFigures), lists:seq(0, 9)),
+    {Out, NewState} = get_light_data(Nums, BFigures, 1, State),
+    gen_server:reply(ReqPid, Out),
+    {noreply, NewState#state{first_bfigures = BFigures}};
+handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = I, estimated_figures = EFs} ) ->
+    MEFs = lists:map(fun(X) -> X - I + 1 end, EFs),
+    SplitedMEFs = split_figures(MEFs, BFigures),
+    {Out, NewState} = get_light_data(SplitedMEFs, BFigures , I, State),
+    gen_server:reply(ReqPid, Out),
+    {noreply, NewState#state{iteration = I + 1}};
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -74,10 +78,10 @@ get_light_data(SplitedMEFs, BrokeFigures, I, State) ->
             {{error, Reason}, State};
         {ok, NewMEFs, CurBS} ->
             NewBS = merge_bs(CurBS, State#state.broken_sections),
-            NEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
+            NewEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
             OutNBS = lists:map(fun bs_to_out_format/1, NewBS),
-            NewState = State#state{estimated_figures = NEFs, iteration = I + 1, broken_sections = NewBS},
-            {{ok, {[{start, NEFs}, {missing, OutNBS}]}}, NewState}
+            NewState = State#state{estimated_figures = NewEFs, iteration = I + 1, broken_sections = NewBS},
+            {{ok, {[{start, NewEFs}, {missing, OutNBS}]}}, NewState}
     end.
 
 split_figures(Figures, BrokeFigures) ->
@@ -97,26 +101,29 @@ prep_estim_figures([EstFig | T], M, Res) ->
     AllFigures =  [X * M + Y || X <- EstFig, Y <- Res],
     prep_estim_figures(T, M * 10, AllFigures).
 
-bs_to_out_format(BS) ->
-    list_to_binary(hd(io_lib:format("~7.2.0B", [BS]))).
-
 get_approach_figures(SNums, BFigures) ->
-    get_approach_figures(SNums, BFigures, [], []).
+    BwTupleBFIgures = lists:map(fun binary_to_bitwise_tuple/1, BFigures),
+    get_approach_figures(SNums, BwTupleBFIgures, [], []).
 get_approach_figures(_, [], CorrectNums, BrokenSecs) ->
     EstFigures = prep_estim_figures(CorrectNums),
     {ok, EstFigures, BrokenSecs};
-get_approach_figures([Nums | NT], [BFigure | BFT], CorrectNums, BrokenSecs) ->
-    {ok, [BwBFigure], []} = io_lib:fread("~2u", binary_to_list(BFigure)),
+get_approach_figures([Nums | NT], [{ok, [BwBFigure], []} | BFT], CorrectNums, BrokenSecs) ->
     BitwiseNums = lists:map(fun dig_to_figure/1, Nums),
-    NumsData = [{figure_to_dig(Num), Num bxor BwBFigure} || Num <- BitwiseNums, Num - BwBFigure == Num bxor BwBFigure],
+    NumsData = [
+        {figure_to_dig(Num), Num - BwBFigure} ||
+        Num <- BitwiseNums,
+        Num - BwBFigure == Num bxor BwBFigure
+    ],
     case NumsData of
         [] ->
             {error, <<"No solutions found">>};
         NumsData ->
             {ApprDig, Diffs} = lists:unzip(NumsData),
-            UnanbiguousBS = lists:foldl(fun(X, Y) -> X band Y end, 127, Diffs),
+            UnanbiguousBS = lists:foldl(fun(X, Y) -> X band Y end, 2#1111111, Diffs),
             get_approach_figures(NT, BFT, [ApprDig | CorrectNums], [UnanbiguousBS | BrokenSecs])
-    end.
+    end;
+get_approach_figures(_, _, _, _) ->
+    {error, <<"There isn't enough data">>}.
 
 dig_to_figure(Dig) ->
     {Dig, Figure} = lists:keyfind(Dig, 1, ?figures_associations),
@@ -134,3 +141,9 @@ merge_bs([], _, Res) ->
     Res;
 merge_bs([CurBS | CBST], [BS | BST], Res) ->
     merge_bs(CBST, BST, [CurBS bor BS | Res]).
+
+bs_to_out_format(BS) ->
+    list_to_binary(hd(io_lib:format("~7.2.0B", [BS]))).
+
+binary_to_bitwise_tuple(Bin) ->
+    io_lib:fread("~2u", binary_to_list(Bin)).
