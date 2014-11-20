@@ -9,9 +9,8 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I), {I, {I, start_link, []}, permanent, 5000, worker, [I]}).
--define(CHILDSUP(S), {S, {S, start_link, []}, transient, infinity, supervisor, [S]}).
-
+-define(child(I), {I, {I, start_link, []}, permanent, 5000, worker, [I]}).
+-define(elli_port, 8040).
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -24,8 +23,10 @@ start_link() ->
 %% ===================================================================
 init([]) ->
     Elli   = webserver(),
-    LightsManagerSrv = ?CHILD(lights_manager_srv),
+    LightsManagerSrv = ?child(lights_manager_srv),
+    DbSrv = ?child(db_srv),
     {ok, { {one_for_one, 5, 10}, [
+        DbSrv,
         LightsManagerSrv,
         Elli
     ]}}.
@@ -38,7 +39,7 @@ webserver() ->
         ]}],
 
     {webserver,
-        {elli, start_link, [[{port, 8040},
+        {elli, start_link, [[{port, ?elli_port},
             {callback, elli_middleware},
             {callback_args, MiddlewareConfig},
             {name, {local, elli}}]]},

@@ -26,17 +26,21 @@
 ]).
 
 -record(state, {
+    seq,
     iteration = 0,
     estimated_figures = [],
     broken_sections = [],
     first_bfigures = []
 }).
 
-start_link(_) ->
-    gen_server:start_link(?MODULE, [], []).
+-define(db_table_name, light_states_data).
 
-init(_Args) ->
-    {ok, #state{iteration = 1}}.
+start_link(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
+
+init([{seq, Seq}]) ->
+    State = gen_server:call(db_srv, {select, ?db_table_name, Seq, #state{iteration = 1, seq = Seq}}),
+    {ok, State}.
 
 handle_call(_Req, _From, State) ->
     {reply, ok, State}.
@@ -44,22 +48,30 @@ handle_call(_Req, _From, State) ->
 handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = 1}) ->
     gen_server:reply(ReqPid, {error, <<"There isn't enough data">>}),
     {noreply, State};
+
 handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = I, first_bfigures = FBFs}) ->
     SplitedMEFs = split_figures([I - 1], FBFs),
     {Out, NewState} = get_light_data(SplitedMEFs, FBFs , 1, State),
     gen_server:reply(ReqPid, Out),
     {noreply, NewState};
+
 handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = 1}) ->
     Nums = lists:duplicate(length(BFigures), lists:seq(0, 9)),
-    {Out, NewState} = get_light_data(Nums, BFigures, 1, State),
+    {Out, NewState} = get_light_data(Nums, BFigures, 1, State#state{first_bfigures = BFigures}),
     gen_server:reply(ReqPid, Out),
-    {noreply, NewState#state{first_bfigures = BFigures}};
+    {noreply, NewState};
+
 handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = I, estimated_figures = EFs} ) ->
     MEFs = lists:map(fun(X) -> X - I + 1 end, EFs),
     SplitedMEFs = split_figures(MEFs, BFigures),
     {Out, NewState} = get_light_data(SplitedMEFs, BFigures , I, State),
     gen_server:reply(ReqPid, Out),
-    {noreply, NewState#state{iteration = I + 1}};
+    {noreply, NewState};
+
+handle_cast(stop, State = #state{seq = Seq}) ->
+    gen_server:cast(db_srv, {delete, ?db_table_name, Seq}),
+    {stop, normal, State};
+
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -81,6 +93,7 @@ get_light_data(SplitedMEFs, BrokeFigures, I, State) ->
             NewEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
             OutNBS = lists:map(fun bs_to_out_format/1, NewBS),
             NewState = State#state{estimated_figures = NewEFs, iteration = I + 1, broken_sections = NewBS},
+            gen_server:cast(db_srv, {insert, ?db_table_name, NewState#state.seq, NewState}),
             {{ok, {[{start, NewEFs}, {missing, OutNBS}]}}, NewState}
     end.
 

@@ -13,6 +13,10 @@ handle(_Method, [<<"sequence">>, <<"create">>], _Req) ->
     Out = lights_manager_srv:create_light(),
     {ok, [], to_json(Out)};
 
+handle(_Method, [<<"clear">>], _Req) ->
+    Out = lights_manager_srv:clear(),
+    {ok, [], to_json(Out)};
+
 handle('POST', [<<"observation">>, <<"add">>], Req) ->
     Data = from_json(elli_request:body(Req)),
     Out = lights_manager_srv:add_observation(Data),
