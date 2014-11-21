@@ -89,8 +89,8 @@ create(LSup, Seq) ->
     gen_server:cast(db_srv, {insert, ?db_table_name, Seq, Pid}),
     Pid.
 
-request_to_light_server(error, _, _, _) ->
-    {error, <<"The sequence isn't found">>};
+request_to_light_server(error, _, _, From) ->
+    gen_server:reply(From, {error, <<"The sequence isn't found">>});
 request_to_light_server({ok, LPid}, Color, Numbers, From) ->
     gen_server:cast(LPid, {add_observation, Color, Numbers, From}).
 

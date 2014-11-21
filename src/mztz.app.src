@@ -5,9 +5,7 @@
   {registered, []},
   {applications, [
       kernel,
-      stdlib,
-      inets,
-      elli
+      stdlib
   ]},
   {mod, { mztz_app, []}},
   {env, []}

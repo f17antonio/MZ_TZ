@@ -54,10 +54,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-select_all(_, false) ->
-    [];
 select_all(TableName, true) ->
     dets:open_file(TableName, []),
     ets:new(TableName, [named_table, set]),
     EtsTable = dets:to_ets(TableName, TableName),
-    ets:tab2list(EtsTable).
+    ets:tab2list(EtsTable);
+select_all(_, _) ->
+    [].
