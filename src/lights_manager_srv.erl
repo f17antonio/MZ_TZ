@@ -22,8 +22,8 @@
 -define(db_table_name, sequenses).
 
 -record(state, {
-    sequences_map = maps:new(),
-    light_sup
+    sequences_map = maps:new() :: map(),
+    light_sup                  :: pid()
 }).
 
 add_observation({error, Reason}) ->

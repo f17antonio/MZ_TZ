@@ -9,11 +9,11 @@
 handle(Req, _Args) ->
     handle(Req#req.method, elli_request:path(Req), Req).
 
-handle(_Method, [<<"sequence">>, <<"create">>], _Req) ->
+handle('POST', [<<"sequence">>, <<"create">>], _Req) ->
     Out = lights_manager_srv:create_light(),
     {ok, [], to_json(Out)};
 
-handle(_Method, [<<"clear">>], _Req) ->
+handle('POST', [<<"clear">>], _Req) ->
     Out = lights_manager_srv:clear(),
     {ok, [], to_json(Out)};
 

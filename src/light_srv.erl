@@ -26,11 +26,11 @@
 ]).
 
 -record(state, {
-    seq,
-    iteration = 0,
-    estimated_figures = [],
-    broken_sections = [],
-    first_bfigures = []
+    seq = <<>>             :: bitstring(),
+    iteration = 0          :: integer(),
+    estimated_figures = [] :: list(),
+    broken_sections = []   :: list(),
+    first_bfigures = []    :: list()
 }).
 
 -define(db_table_name, light_states_data).
@@ -50,8 +50,8 @@ handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = 
     {noreply, State};
 
 handle_cast({add_observation, <<"red">>, _, ReqPid}, State = #state{iteration = I, first_bfigures = FBFs}) ->
-    SplitedMEFs = split_figures([I - 1], FBFs),
-    {Out, NewState} = get_light_data(SplitedMEFs, FBFs , 1, State),
+    SplitedIncrEstimFigures = split_figures([I - 1], FBFs),
+    {Out, NewState} = get_light_data(SplitedIncrEstimFigures, FBFs , 1, State),
     gen_server:reply(ReqPid, Out),
     {noreply, NewState};
 
@@ -62,9 +62,9 @@ handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = 1
     {noreply, NewState};
 
 handle_cast({add_observation, _, BFigures, ReqPid}, State = #state{iteration = I, estimated_figures = EFs} ) ->
-    MEFs = lists:map(fun(X) -> X - I + 1 end, EFs),
-    SplitedMEFs = split_figures(MEFs, BFigures),
-    {Out, NewState} = get_light_data(SplitedMEFs, BFigures , I, State),
+    IncrEstimFigures = lists:map(fun(X) -> X - I + 1 end, EFs),
+    SplitedIncrEstimFigures = split_figures(IncrEstimFigures, BFigures),
+    {Out, NewState} = get_light_data(SplitedIncrEstimFigures, BFigures , I, State),
     gen_server:reply(ReqPid, Out),
     {noreply, NewState};
 
@@ -84,17 +84,17 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-get_light_data(SplitedMEFs, BrokeFigures, I, State) ->
-    case get_approach_figures(SplitedMEFs, BrokeFigures) of
-        {error, Reason} ->
-            {{error, Reason}, State};
+get_light_data(SplitedIncrEstimFigures, BrokeFigures, I, State) ->
+    case get_approach_figures(SplitedIncrEstimFigures, BrokeFigures) of
         {ok, NewMEFs, CurBS} ->
             NewBS = merge_bs(CurBS, State#state.broken_sections),
             NewEFs = lists:map(fun(X) -> X + I - 1 end, NewMEFs),
             OutNBS = lists:map(fun bs_to_out_format/1, NewBS),
             NewState = State#state{estimated_figures = NewEFs, iteration = I + 1, broken_sections = NewBS},
             gen_server:cast(db_srv, {insert, ?db_table_name, NewState#state.seq, NewState}),
-            {{ok, {[{start, NewEFs}, {missing, OutNBS}]}}, NewState}
+            {{ok, {[{start, NewEFs}, {missing, OutNBS}]}}, NewState};
+        {error, Reason} ->
+            {{error, Reason}, State}
     end.
 
 split_figures(Figures, BrokeFigures) ->
@@ -115,8 +115,8 @@ prep_estim_figures([EstFig | T], M, Res) ->
     prep_estim_figures(T, M * 10, AllFigures).
 
 get_approach_figures(SNums, BFigures) ->
-    BwTupleBFIgures = lists:map(fun binary_to_bitwise_tuple/1, BFigures),
-    get_approach_figures(SNums, BwTupleBFIgures, [], []).
+    BwTupleBFigures = lists:map(fun binary_to_bitwise_tuple/1, BFigures),
+    get_approach_figures(SNums, BwTupleBFigures, [], []).
 get_approach_figures(_, [], CorrectNums, BrokenSecs) ->
     EstFigures = prep_estim_figures(CorrectNums),
     {ok, EstFigures, BrokenSecs};
