@@ -147,7 +147,7 @@ figure_to_dig(Figure) ->
     Dig.
 
 merge_bs(CurBS, []) ->
-    CurBS;
+    lists:reverse(CurBS);
 merge_bs(CurBS, BS) ->
     merge_bs(CurBS, lists:reverse(BS), []).
 merge_bs([], _, Res) ->

@@ -13,7 +13,8 @@
     {[
         {<<"observation">>,
             {[{<<"color">>, <<"red">>}]}},
-        {<<"sequence">>, Seq}]}
+        {<<"sequence">>, Seq}
+    ]}
 ).
 
 -define(num0, <<"1110111">>).

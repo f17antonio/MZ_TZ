@@ -10,7 +10,13 @@
 
 %% Helper macro for declaring children of supervisor
 -define(child(I), {I, {I, start_link, []}, permanent, 5000, worker, [I]}).
+
+-ifdef(TEST).
+-define(elli_port, 8041).
+-else.
 -define(elli_port, 8040).
+-endif.
+
 %% ===================================================================
 %% API functions
 %% ===================================================================
