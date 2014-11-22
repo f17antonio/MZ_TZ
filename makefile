@@ -5,6 +5,8 @@ VERSION    ?= $(shell echo $(REVISION) | tr - .)
 EPMD        = $(shell pgrep epmd)tail
 TAIL        = tail
 
+.PHONY: install
+
 REBAR=./rebar
 
 deps:
